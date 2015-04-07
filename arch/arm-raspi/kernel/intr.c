@@ -24,9 +24,9 @@
 
 #define IRQBANK_POINTER(bank)   ((bank == 0) ? GPUIRQ_ENBL0 : (bank == 1) ? GPUIRQ_ENBL1 : ARMIRQ_ENBL)
 
-#define DREGS(x)
-#define DIRQ(x)
-#define D(x)
+#define DREGS(x) x
+#define DIRQ(x) x
+#define D(x) x
 
 void ictl_enable_irq(uint8_t irq, struct KernelBase *KernelBase)
 {
@@ -286,6 +286,8 @@ void handle_dataabort(regs_t *regs)
 
     bug("[Kernel] UNHANDLED EXCEPTION #2\n");
 
+    cpu_DumpRegs(regs);
+
     while (1)
         asm volatile ("mov r0, r0\n");
 }
@@ -328,6 +330,9 @@ void handle_prefetchabort(regs_t *regs)
     }
 
     bug("[Kernel] UNHANDLED EXCEPTION #3\n");
+
+
+    cpu_DumpRegs(regs);
 
     while (1)
         asm volatile ("mov r0, r0\n");

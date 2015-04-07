@@ -21,7 +21,7 @@
 #include <kernel_debug.h>
 #include <kernel_romtags.h>
 
-#define D(x)
+#define D(x) x
 
 static LONG findname(struct Resident **list, ULONG len, CONST_STRPTR name)
 {
@@ -241,6 +241,8 @@ APTR krnRomTagScanner(struct MemHeader *mh, UWORD *ranges[])
     	    }
     	}
     } while (!sorted);
+
+    D(bug("[RomTagScanner] finished scan. found %d modules\n", num));
 
     return RomTag;
 }

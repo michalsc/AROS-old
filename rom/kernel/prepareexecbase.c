@@ -20,14 +20,14 @@ struct ExecBase *krnPrepareExecBase(UWORD *ranges[], struct MemHeader *mh, struc
     struct Resident *exec; 
     struct ExecBase *sysBase;
     struct Resident **resList = krnRomTagScanner(mh, ranges);
-
+bug("1 ranges=%p, mh=%p\n", ranges, mh);
     if (!resList)
     {
         krnPanic(NULL, "Failed to create initial resident list\n"
         	       "Not enough memory space provided");
         return NULL;
     }
-
+bug("2 resList=%p\n", resList);
     exec = krnFindResident(resList, "exec.library");
     if (!exec)
     {
@@ -35,10 +35,11 @@ struct ExecBase *krnPrepareExecBase(UWORD *ranges[], struct MemHeader *mh, struc
 		       "exec.library is not found");
     	return NULL;
     }
-
+bug("3 exec=%p\n", exec);
+bug("4 rt_Init=%p\n", exec->rt_Init);
     /* Magic. Described in rom/exec/exec_init.c. */
     sysBase = krnInitExecBase(exec, mh, bootMsg);
-
+bug("4");
     if (!sysBase)
     {
 	krnPanic(NULL, "Failed to create ExecBase\n"
@@ -48,9 +49,9 @@ struct ExecBase *krnPrepareExecBase(UWORD *ranges[], struct MemHeader *mh, struc
 
 	return NULL;
     }
-
+bug("5");
     sysBase->ResModules = resList;
-
+bug("6");
 #ifndef NO_RUNTIME_DEBUG
     /* Print out modules list if requested by the user */
     if (SysBase->ex_DebugFlags & EXECDEBUGF_INITCODE)

@@ -1,5 +1,5 @@
 /*
-    Copyright © 2013, The AROS Development Team. All rights reserved.
+    Copyright ï¿½ 2013, The AROS Development Team. All rights reserved.
     $Id$
 */
 
@@ -28,8 +28,8 @@ extern char * __text_end;
 #define _CUSTOM NULL
 #endif
 
-#define DREGS(x)
-#define D(x)
+#define DREGS(x) x
+#define D(x) x
 
 /*
     __vectorhand_swi:

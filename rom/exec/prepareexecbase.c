@@ -1,5 +1,5 @@
 /*
-    Copyright © 1995-2011, The AROS Development Team. All rights reserved.
+    Copyright ï¿½ 1995-2011, The AROS Development Team. All rights reserved.
     $Id$
 
     Desc: Sets up the ExecBase a bit. (Mostly clearing).
@@ -55,6 +55,17 @@ static void Exec_TaskFinaliser(void)
 #undef kprintf
 #undef rkprintf
 #undef vkprintf
+#include <stdarg.h>
+void Kernel_12_KrnBug(const char * format, va_list args, void *);
+
+static inline void __bug(const char *format, ...)
+{
+    void *kbase = NULL;
+    va_list args;
+    va_start(args, format);
+    Kernel_12_KrnBug(format, args, kbase);
+    va_end(args);
+}
 
 void _aros_not_implemented(char *X)
 {
@@ -66,13 +77,13 @@ void _aros_not_implemented(char *X)
 struct Library *PrepareAROSSupportBase (struct MemHeader *mh)
 {
     struct AROSSupportBase *AROSSupportBase;
-
+__bug("PrepareAROSSupportBase(%p)\n", mh);
     AROSSupportBase = Allocate(mh, sizeof(struct AROSSupportBase));
-
+__bug("Base=%p\n", AROSSupportBase);
     AROSSupportBase->kprintf = (void *)kprintf;
     AROSSupportBase->rkprintf = (void *)rkprintf;
     AROSSupportBase->vkprintf = (void *)vkprintf;
-
+__bug("kprintf=%p\nrkprintf=%p\nvkprintf=%p\n", kprintf, rkprintf, vkprintf);
     AROSSupportBase->StdOut = NULL;
     AROSSupportBase->DebugConfig = NULL;
 
@@ -162,6 +173,8 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
     ULONG i;
     char *args;
 
+__bug("PrepareExecBase(%p, %p)\n", mh, msg);
+
     /*
      * Copy reset proof pointers if old SysBase is valid.
      * Additional platform-specific code is needed in order to test
@@ -176,10 +189,9 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
     	KickTagPtr   = SysBase->KickTagPtr;
     	KickCheckSum = SysBase->KickCheckSum;
     }
-
+    
     /* Calculate the size of the vector table */
     while (*fp++ != (VOID *) -1) negsize += LIB_VECTSIZE;
-    
     /* Align library base */
     negsize = AROS_ALIGN(negsize);
 
@@ -190,12 +202,13 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
 
     SysBase = mem + negsize;
 
+__bug("Allocated SysBase @ %p\n", SysBase);
+
 #ifdef HAVE_PREPAREPLATFORM
     /* Setup platform-specific data */
     if (!Exec_PreparePlatform(&PD(SysBase), msg))
 	return NULL;
 #endif
-
     /* Setup function vectors */
     AROS_CALL3(ULONG, AROS_SLIB_ENTRY(MakeFunctions, Exec, 15),
 	      AROS_UFCA(APTR, SysBase, A0),
@@ -214,7 +227,7 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
     SysBase->LibNode.lib_NegSize      = negsize;
     SysBase->LibNode.lib_PosSize      = sizeof(struct IntExecBase);
     SysBase->LibNode.lib_Flags        = LIBF_CHANGED | LIBF_SUMUSED;
-
+__bug("1");
     NEWLIST(&SysBase->MemList);
     SysBase->MemList.lh_Type = NT_MEMORY;
     
@@ -256,7 +269,7 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
     NEWLIST(&PrivExecBase(SysBase)->ResetHandlers);
     NEWLIST(&PrivExecBase(SysBase)->AllocMemList);
     NEWLIST(&PrivExecBase(SysBase)->AllocatorCtxList);
-
+__bug("2");
     InitSemaphore(&PrivExecBase(SysBase)->MemListSem);
     InitSemaphore(&PrivExecBase(SysBase)->LowMemSem);
 
@@ -267,7 +280,7 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
     SysBase->TaskExitCode   = Exec_TaskFinaliser;
     SysBase->TaskSigAlloc   = 0xFFFF;
     SysBase->TaskTrapAlloc  = 0;
-
+__bug("3");
     /* Parse some arguments from command line */
     args = (char *)LibGetTagData(KRN_CmdLine, 0, msg);
     if (args)
@@ -302,11 +315,11 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
 	if (opts)
 	    SysBase->ex_DebugFlags = ParseFlags(&opts[9], ExecFlagNames);
     }
-
+__bug("4");
     NEWLIST(&PrivExecBase(SysBase)->TaskStorageSlots);
 
     SetSysBaseChkSum();
-
+__bug("5");
     /* Add our initial MemHeader */
     ADDHEAD(&SysBase->MemList, &mh->mh_Node);
 
@@ -317,8 +330,10 @@ struct ExecBase *PrepareExecBase(struct MemHeader *mh, struct TagItem *msg)
     SysBase->KickMemPtr   = KickMemPtr;
     SysBase->KickTagPtr   = KickTagPtr;
     SysBase->KickCheckSum = KickCheckSum;
-
+__bug("6");
     SysBase->DebugAROSBase = PrepareAROSSupportBase(mh);
+
+__bug("Returning SysBase=%p\n", SysBase);
 
     return SysBase;
 }

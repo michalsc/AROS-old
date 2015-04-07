@@ -16,13 +16,33 @@
 #include "kernel_intern.h"
 #include "mmu.h"
 
-unsigned int pagetable[4096]	__attribute__ ((aligned (16384)));
-unsigned int pagetable0[64]	__attribute__ ((aligned (16384)));
+pde_t pagetable[4096] __attribute__((aligned(16384)));
+
+
+void arm_flush_cache(uint32_t addr, uint32_t length);
+
+void *core_MMUVirtToPhys(void *addr)
+{
+    pde_t *pde;
+    int idx = ((uintptr_t)addr) >> 20;
+    asm volatile("mrc   p15, 0, %[addr], c2, c0, 0" : [addr] "=r" (pde));
+
+    pde = (pde_t *)(((uintptr_t)pde) &~(16384-1));
+
+    if ((pde[idx].raw & 0x3) == 2)
+    {
+        uintptr_t phys = pde[idx].section.base_address << 20;
+        phys += (uintptr_t)addr & (1024*1024-1);
+
+        return (void *)phys;
+    }
+}
 
 void core_MMUUpdatePageTables(void)
 {
-    unsigned int pt_addr = (unsigned int) &pagetable;
-    unsigned int pt0_addr = (unsigned int) &pagetable0;
+    void * pt_addr = core_MMUVirtToPhys(&pagetable);
+
+    D(bug("[Kernel] Updating PDE address to %p, phys %p\n", pagetable, pt_addr));
 
     /* Invalidate caches */
     asm volatile("mcr   p15, 0, %[r], c8, c7, 0" : : [r] "r" (0x0));   //Invalidate entire unified TLB
@@ -32,43 +52,34 @@ void core_MMUUpdatePageTables(void)
     asm volatile("mcr   p15, 0, %[r], c7, c5, 0" : : [r] "r" (0x0));   //Invalidate icache
 
     /* setup_ttbr0/1 */
-    asm volatile("mcr   p15, 0, %[addr], c2, c0, 0" : : [addr] "r" (pt0_addr));
-    asm volatile("mcr   p15, 0, %[addr], c2, c0, 1" : : [addr] "r" (pt_addr));
+    asm volatile("mcr   p15, 0, %[addr], c2, c0, 0" : : [addr] "r" (pt_addr));
     /* setup_ttbrc */
-    asm volatile("mcr   p15, 0, %[n], c2, c0, 2" : : [n] "r" (7));
+    asm volatile("mcr   p15, 0, %[n], c2, c0, 2" : : [n] "r" (0));
 }
 
 void core_SetupMMU(struct TagItem *msg)
 {
-    unsigned int page;
-    register unsigned int control;
+    pde_t *initial_pde;
+    uint32_t control;
+    int i;
 
-    D(bug("[Kernel] core_SetupMMU: Creating MMU pagetable[0] entries for 4GB address space\n"));
+    D(bug("[Kernel] core_SetupMMU(%p)\n", msg));
 
-    for (page = 0; page < 4096; page ++)
-    {
-        unsigned int pageflags = PAGE_TRANSLATIONFAULT;
-        if (page > 64)
-        {
-            pageflags = (page << 20) | PAGE_FL_S_BIT | PAGE_SECTION;
-#if defined(ARM_PERIIOBASE)
-            if ((page < (ARM_PERIIOBASE >> 20)) || (page > ((ARM_PERIIOBASE + ARM_PERIIOSIZE) >> 20)))
-#endif
-                pageflags |= PAGE_C_BIT | PAGE_B_BIT | (1 << PAGE_TEX_SHIFT);
-        }
-        pagetable[page] = pageflags;
-    }
+    asm volatile("mrc   p15, 0, %[addr], c2, c0, 0" : [addr] "=r" (initial_pde));
 
-    D(bug("[Kernel] core_SetupMMU: Creating MMU pagetable[1] entries for 64MB address space\n"));
-    for (page = 0; page < 64; page++)
-    {
-            pagetable0[page] = (page << 20) | PAGE_FL_S_BIT | PAGE_C_BIT | PAGE_SECTION | PAGE_B_BIT | (1 << PAGE_TEX_SHIFT);
-    }
+    D(bug("[Kernel] Initial PDE @ %p, Kernel PDE @ %p\n", initial_pde, pagetable));
+
+    initial_pde = (pde_t *)(((intptr_t)initial_pde) &~(16384-1));
+
+    for (i=0; i < 4096; i++)
+        pagetable[i].raw = initial_pde[i].raw;
+
+    arm_flush_cache((uint32_t)pagetable, 16384);
 
     core_MMUUpdatePageTables();
 
-    /* Set the domain access control to all-supervisor */
-    asm volatile("mcr   p15, 0, %[r], c3, c0, 0" : : [r] "r" (~0));
+    /* Set the domain 0 access control to client */
+    asm volatile("mcr   p15, 0, %[r], c3, c0, 0" : : [r] "r" (1));
 
     /* Enable L1 caches (I-cache and D-cache) and MMU.*/
     asm volatile("mrc   p15, 0, %[control], c1, c0, 0" : [control] "=r" (control));
