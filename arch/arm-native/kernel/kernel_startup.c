@@ -30,6 +30,7 @@
 #include "kernel_intern.h"
 #include "kernel_debug.h"
 #include "kernel_romtags.h"
+#include "tls.h"
 
 extern struct TagItem *BootMsg;
 
@@ -113,6 +114,7 @@ void __attribute__((used)) kernel_cstart(struct TagItem *msg)
     struct MemChunk *mc;
     long unsigned int memlower = 0, memupper = 0, protlower = 0, protupper = 0;
     BootMsg = msg;
+    tls_t *__tls;
 
     cpu_Probe(&__arm_arosintern);
     platform_Init(&__arm_arosintern, msg);
@@ -167,16 +169,25 @@ void __attribute__((used)) kernel_cstart(struct TagItem *msg)
     }
     msg = BootMsg;
 
+    protupper = (protupper + 4095) & ~4095;
+    __tls = (void *)protupper;
+    protupper += (sizeof(tls_t) + 4095) & ~4095;
+// TODO : Round protupper to page size
+    __tls->KernelBase = NULL;
+    __tls->SysBase = NULL;
+
     D(bug("[KRN] AROS ARM Native Kernel built on %s\n", __DATE__));
 
-    D(bug("[KRN] Entered kernel_cstart @ 0x%p, BootMsg @ %p\n", kernel_cstart, BootMsg));
+    D(bug("[KRN] Entered kernel_cstart @ 0x%p, BootMsg @ 0x%p\n", kernel_cstart, BootMsg));
 
-    cpu_Probe(&__arm_arosintern);
+    asm volatile("mcr p15, 0, %0, c13, c0, 3" : : "r"(__tls));
+
     D(
         if (__arm_arosintern.ARMI_PutChar)
         {
             bug("[KRN] Using PutChar implementation @ %p\n", __arm_arosintern.ARMI_PutChar);
         }
+        bug("[KRN] Boot CPU TLS @ 0x%p\n", __tls);
     )
 
     core_SetupIntr();
@@ -219,6 +230,9 @@ void __attribute__((used)) kernel_cstart(struct TagItem *msg)
     D(bug("[KRN] Preparing ExecBase (memheader @ 0x%p)\n", mh));
     krnPrepareExecBase(ranges, mh, BootMsg);
 
+    __tls->SysBase = SysBase;
+    D(bug("[KRN] SysBase @ 0x%p\n", SysBase));
+
     /* 
      * Make kickstart code area read-only.
      * We do it only after ExecBase creation because SysBase pointer is put
@@ -229,10 +243,14 @@ void __attribute__((used)) kernel_cstart(struct TagItem *msg)
     D(bug("[KRN] InitCode(RTF_SINGLETASK) ... \n"));
     InitCode(RTF_SINGLETASK, 0);
 
-    D(bug("[KRN] InitCode(RTF_COLDSTART) ...\n"));
-
+    D(bug("[KRN] Dropping into USER mode ... \n"));
     asm("cps %[mode_user]\n" : : [mode_user] "I" (CPUMODE_USER)); /* switch to user mode */
 
+    uint32_t xxx;
+    asm volatile("mrc p15, 0, %0, c13, c0, 3" : "=r"(xxx));
+    bug("rereaded TLS=%08x\n", xxx);
+
+    D(bug("[KRN] InitCode(RTF_COLDSTART) ...\n"));
     InitCode(RTF_COLDSTART, 0);
 
     /* The above should not return */

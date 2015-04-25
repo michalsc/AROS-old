@@ -35,6 +35,9 @@ struct IntETask
 {
     struct ETask       iet_ETask;
     APTR                iet_RT;                 /* Structure for resource tracking         */
+//#if defined(__AROSEXEC_SMP__)
+    IPTR                iet_CpuAffinity;        /* bitmap of cores this task can run on    */
+//#endif
     UQUAD               iet_CpuTime;
     UQUAD               iet_private1;
     ULONG               iet_AlertCode;          /* Alert code for crash handler            */

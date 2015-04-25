@@ -8,6 +8,8 @@
 #include <exec/execbase.h>
 #include <hardware/intbits.h>
 
+#include "kernel_base.h"
+
 #include <proto/kernel.h>
 
 #include "etask.h"
@@ -18,12 +20,15 @@
 #include "kernel_syscall.h"
 #include "kernel_scheduler.h"
 #include "kernel_intr.h"
+#include <kernel_objects.h>
+#include "tls.h"
 
 #define D(x)
 #define DREGS(x)
 
 extern struct Task *sysIdleTask;
 uint32_t __arm_affinitymask __attribute__((section(".data"))) = 1;
+extern BOOL Exec_InitETask(struct Task *, struct ExecBase *);
 
 asm(
 "       .globl mpcore_trampoline                \n"
@@ -43,20 +48,29 @@ asm(
 "               mcr     p15, 0, r4, c1, c0, 0   \n"
 "               mcr     p15, 0, r3, c7, c5, 4   \n"
 "               cps     #0x13                   \n"
-"               ldr     sp, mpcore_data         \n"
+"               ldr     sp, mpcore_stack        \n"
+"               ldr     r3, mpcore_tls          \n"
+"               mcr     p15, 0, r3, c13, c0, 3  \n"
 "               ldr     pc, mpcore_code         \n"
 
 "       .globl mpcore_pde                       \n"
 "mpcore_pde:    .word   0                       \n"
 "mpcore_code:   .word   0                       \n"
-"mpcore_data:   .word   0                       \n"
+"mpcore_stack:  .word   0                       \n"
+"mpcore_tls:    .word   0                       \n"
 "       .globl mpcore_end                       \n"
 "mpcore_end:  "
 );
 
 void cpu_Register()
 {
+    struct ExecBase *SysBase;
+    struct KernelBase *KernelBase;
+    struct Task *t;
+    struct MemList *ml;
+    struct ExceptionContext *ctx;
     uint32_t tmp;
+    tls_t *__tls;
 
     asm volatile ("mrc p15, 0, %0, c1, c0, 0" : "=r"(tmp));
     tmp |= (1 << 2) | (1 << 12) | (1 << 11);    /* I and D caches, branch prediction */
@@ -65,11 +79,74 @@ void cpu_Register()
 
     cpu_Init(&__arm_arosintern, NULL);
 
+    asm volatile (" mrc p15, 0, %0, c13, c0, 3 " : "=r" (__tls));
     asm volatile (" mrc p15, 0, %0, c0, c0, 5 " : "=r" (tmp));
+
+//#if defined(__AROSEXEC_SMP__)
+    /* Now we are ready to boostrap and launch the schedular */
+    bug("[KRN] Core %d Boostrapping..\n", (tmp & 0x3));
+    bug("[KRN] Core %d TLS @ 0x%p\n", (tmp & 0x3), (__tls));
+    KernelBase = __tls->KernelBase; // TLS_GET(KernelBase)
+    SysBase = __tls->SysBase; // TLS_GET(SysBase)
+    bug("[KRN] Core %d KernelBase @ 0x%p\n", (tmp & 0x3), KernelBase);
+    bug("[KRN] Core %d SysBase @ 0x%p\n", (tmp & 0x3), SysBase);
+
+    t   = AllocMem(sizeof(struct Task),    MEMF_PUBLIC|MEMF_CLEAR);
+    ml  = AllocMem(sizeof(struct MemList), MEMF_PUBLIC|MEMF_CLEAR);
+
+    if (!t || !ml)
+    {
+        bug("[KRN] Core %d FATAL : Failed to allocate memory for bootstrap task!", (tmp & 0x3));
+        goto cpu_registerfatal;
+    }
+
+    bug("[KRN] Core %d Bootstrap task @ 0x%p\n", (tmp & 0x3), t);
+    bug("[KRN] Core %d cpu context size %d\n", (tmp & 0x3), KernelBase->kb_ContextSize);
+
+    ctx = KrnCreateContext();
+    if (!ctx)
+    {
+        bug("[KRN] Core %d FATAL : Failed to create the boostrap task context!\n", (tmp & 0x3));
+        goto cpu_registerfatal;
+    }
+
+    bug("[KRN] Core %d cpu ctx @ 0x%p\n", (tmp & 0x3), ctx);
+
+    NEWLIST(&t->tc_MemEntry);
+
+    t->tc_Node.ln_Name = AllocVec(20, MEMF_CLEAR);
+    sprintf( t->tc_Node.ln_Name, "Core(%d) Bootstrap", (tmp & 0x3));
+    t->tc_Node.ln_Type = NT_TASK;
+    t->tc_Node.ln_Pri  = 0;
+    t->tc_State        = TS_RUN;
+    t->tc_SigAlloc     = 0xFFFF;
+
+    /* Build bootstraps memory list */
+    ml->ml_NumEntries      = 1;
+    ml->ml_ME[0].me_Addr   = t;
+    ml->ml_ME[0].me_Length = sizeof(struct Task);
+    AddHead(&t->tc_MemEntry, &ml->ml_Node);
+
+    /* Create a ETask structure and attach CPU context */
+    if (!Exec_InitETask(t, SysBase))
+    {
+        bug("[KRN] Core %d FATAL : Failed to allocate memory for boostrap extended data!\n", (tmp & 0x3));
+        goto cpu_registerfatal;
+    }
+    t->tc_UnionETask.tc_ETask->et_RegFrame = ctx;
+
+    /* This Bootstrap task can run only on one of the available cores */
+    GetIntETask(t->tc_UnionETask.tc_ETask)->iet_CpuAffinity = 1 << (tmp & 0x3);
+
+    __tls->ThisTask = t;
+//#endif
+
+    bug("[KRN] Core %d operational\n", (tmp & 0x3));
 
     __arm_affinitymask |= (1 << (tmp & 0x3));
 
-    bug("[KRN] Core %d up and waiting for interrupts\n", tmp & 0x3);
+cpu_registerfatal:
+    bug("[KRN] Core %d waiting for interrupts\n", tmp & 0x3);
 
     for (;;) asm volatile("wfi");
 }
@@ -94,8 +171,7 @@ void cpu_Probe(struct ARM_Implementation *krnARMImpl)
 
         if (tmp & (2 << 30))
         {
-
-
+            //Multicore system
         }
     }
     else
@@ -109,6 +185,11 @@ void cpu_Init(struct ARM_Implementation *krnARMImpl, struct TagItem *msg)
     register unsigned int fpuflags;
 
     core_SetupMMU(msg);
+
+    if (msg)
+    {
+        /* Only boot processor calls cpu_Init with a valid msg */
+    }
 
     /* Enable Vector Floating Point Calculations */
     asm volatile("mrc p15,0,%[fpuflags],c1,c0,2\n" : [fpuflags] "=r" (fpuflags));   // Read Access Control Register 
