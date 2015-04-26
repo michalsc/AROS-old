@@ -207,7 +207,7 @@ void cpu_Switch(regs_t *regs)
 
     D(bug("[Kernel] cpu_Switch()\n"));
 
-    task = SysBase->ThisTask;
+    task = TLS_GET(ThisTask);
         
     /* Copy current task's context into the ETask structure */
     /* Restore the task's state */
