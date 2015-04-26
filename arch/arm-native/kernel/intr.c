@@ -194,12 +194,15 @@ asm (
 void handle_dataabort(regs_t *regs)
 {
     register unsigned int far;
+    unsigned int tmp;
 
     // Read fault address register
     asm volatile("mrc p15, 0, %[far], c6, c0, 0": [far] "=r" (far) );
 
+    asm volatile (" mrc p15, 0, %0, c0, c0, 5 " : "=r" (tmp));
+
     bug("[Kernel] Trap ARM Data Abort Exception\n");
-    bug("[Kernel]    exception #2 (Bus Error)\n");
+    bug("[Kernel]    exception #2 (Bus Error) core #%d\n", tmp & 3);
     bug("[Kernel]    attempt to access 0x%p from 0x%p\n", far, regs->pc);
 
     cpu_DumpRegs(regs);
