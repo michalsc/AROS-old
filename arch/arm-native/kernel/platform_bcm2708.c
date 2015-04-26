@@ -94,7 +94,7 @@ static void bcm2708_init(APTR _kernelBase, APTR _sysBase)
                 *((uint32_t *)(0x4000008c + (0x10 * core))) = (uint32_t)trampoline_dst;
 
                 if (__arm_arosintern.ARMI_Delay)
-                    __arm_arosintern.ARMI_Delay(10000000);
+                    __arm_arosintern.ARMI_Delay(20000000);
         }
     }
 }
