@@ -2,6 +2,7 @@
 include $(TOP)/config/make.cfg
 
 CFILES := \
+        kernel_scheduler \
         kernel_startup \
 	kernel_cpu \
 	platform_init \
