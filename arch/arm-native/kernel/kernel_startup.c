@@ -175,6 +175,7 @@ void __attribute__((used)) kernel_cstart(struct TagItem *msg)
 // TODO : Round protupper to page size
     __tls->KernelBase = NULL;
     __tls->SysBase = NULL;
+    __tls->ThisTask = NULL;
 
     D(bug("[KRN] AROS ARM Native Kernel built on %s\n", __DATE__));
 
