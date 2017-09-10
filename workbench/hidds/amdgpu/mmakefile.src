@@ -1,0 +1,21 @@
+#   $Id$
+
+include $(SRCDIR)/config/aros.cfg
+
+#MM- workbench-hidds-amdgpu : hidd-amdgpu-$(AROS_TARGET_CPU)
+#MM- hidd-amdgpu-i386 : hidd-amdgpu
+#MM- hidd-amdgpu-x86_64 : hidd-amdgpu
+#MM hidd-amdgpu : hidd-i2c hidd-gallium
+
+
+AMDGPU_HIDD_SOURCES := \
+            amdgpu_init amdgpu_class
+
+NOWARN_FLAGS := $(NOWARN_UNINITIALIZED) $(NOWARN_STRICT_ALIASING)
+USER_CFLAGS := $(NOWARN_FLAGS) -std=gnu99
+
+%build_module mmake=hidd-amdgpu \
+    modname=amdgpu modtype=hidd \
+    files="$(AMDGPU_HIDD_SOURCES)" \
+    uselibs="hiddstubs galliumauxiliary stdcio stdc"
+
