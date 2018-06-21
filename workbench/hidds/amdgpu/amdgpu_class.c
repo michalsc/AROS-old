@@ -35,6 +35,7 @@
 
 /* PUBLIC METHODS */
 
+
 OOP_Object *METHOD(AMDGPU, Root, New)
 {
 //    struct amdgpu_device *dev = NULL;
@@ -46,6 +47,7 @@ OOP_Object *METHOD(AMDGPU, Root, New)
 
     D(bug("[AMDGPU] Root::New()\n"));
 
+    amdgpu_init();
     while(1);
 
 //    if (amdgpu_init() < 0)

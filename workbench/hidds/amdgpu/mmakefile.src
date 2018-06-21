@@ -2,14 +2,28 @@
 
 include $(SRCDIR)/config/aros.cfg
 
+include $(SRCDIR)/$(CURDIR)/drm/sources.drm.mak
+
 #MM- workbench-hidds-amdgpu : hidd-amdgpu-$(AROS_TARGET_CPU)
 #MM- hidd-amdgpu-i386 : hidd-amdgpu
 #MM- hidd-amdgpu-x86_64 : hidd-amdgpu
 #MM hidd-amdgpu : hidd-i2c hidd-gallium
 
+DRM_PATH = $(SRCDIR)/$(CURDIR)/drm/
 
 AMDGPU_HIDD_SOURCES := \
-            amdgpu_init amdgpu_class
+            amdgpu_init amdgpu_class \
+            $(addprefix $(DRM_PATH),$(AROS_DRM_CORE_SOURCES))           \
+            $(addprefix $(DRM_PATH),$(AROS_DRM_AMDGPU_SOURCES))         \
+            $(addprefix $(DRM_PATH),$(AROS_LIBDRM_CORE_SOURCES))        \
+            $(addprefix $(DRM_PATH),$(AROS_LIBDRM_AMDGPU_SOURCES))      \
+
+USER_INCLUDES := \
+                -I$(DRM_PATH)/drm                           \
+                -I$(DRM_PATH)/drm/amdgpu                    \
+                -I$(DRM_PATH)/drm/amdgpu/include            \
+                -I$(DRM_PATH)/drm-aros                      \
+                -I$(DRM_PATH)/drm-aros/amdgpu               \
 
 NOWARN_FLAGS := $(NOWARN_UNINITIALIZED) $(NOWARN_STRICT_ALIASING)
 USER_CFLAGS := $(NOWARN_FLAGS) -std=gnu99

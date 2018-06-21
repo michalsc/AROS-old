@@ -212,4 +212,6 @@ LIBBASETYPE
 APTR HIDDAMDGPUAlloc(ULONG size);
 VOID HIDDAMDGPUFree(APTR memory);
 
+int amdgpu_init();
+
 #endif /* _AMDGPU_INTERN_H */
